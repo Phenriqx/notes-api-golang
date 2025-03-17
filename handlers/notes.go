@@ -4,20 +4,54 @@
 package handlers
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
+
+	"github.com/phenriqx/notes-api/models"
+	"gorm.io/gorm"
 
 	"github.com/gorilla/mux"
 )
 
-func GetNotesHandler(w http.ResponseWriter, r *http.Request) {
-	// Implement logic to retrieve notes from the database and display them in a list
-	fmt.Fprint(w, "Getting notes from database")
+func GetNotesHandler(db *gorm.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var notes []models.Notes
+		db.Find(&notes)
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(notes)
+	}
 }
 
-func CreateNoteHandler(w http.ResponseWriter, r *http.Request) {
-	// Implement logic to create a new note
-	fmt.Printf("Craete note")
+func CreateNoteHandler(db *gorm.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		var note models.Notes
+		err := json.NewDecoder(r.Body).Decode(&note)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError) // InternalServerError returns status code 500
+			return
+		}
+
+		title := note.Title
+		content := note.Content
+		if len(title) <= 0 || len(content) <= 0 {
+			http.Error(w, "Title and content must be non-empty.", http.StatusBadRequest) // BadGateway returns status code 400 - Indicates a client-side error
+			return
+		}
+
+		db.Create(&note)
+		fmt.Println(note.UserID)
+		fmt.Println(note.Title)
+		fmt.Println(note.Content)
+		fmt.Println(note.CreatedAt)
+
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(map[string]string{
+			"message" : "Note created successfully",
+		})
+	}
 }
 
 func GetNoteByIDHandler(w http.ResponseWriter, r *http.Request) {

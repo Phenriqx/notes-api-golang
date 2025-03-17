@@ -1,4 +1,4 @@
-package db
+package database
 
 import (
 	"fmt"
@@ -11,10 +11,10 @@ import (
 	"github.com/joho/godotenv"
 )
 
-func Connect(){
+func Connect() (*gorm.DB, error) {
 	if err := godotenv.Load(); err != nil {
 		fmt.Printf("error loading godotenv: %v\n", err)
-		return
+		return nil, err
 	}
 
 	host := os.Getenv("HOST")
@@ -27,7 +27,7 @@ func Connect(){
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
 		fmt.Printf("Error connecting to the database: %v\n", err)
-        return
+        return nil, err
 	}
 	fmt.Println("Database connection successful!")
 
@@ -40,4 +40,6 @@ func Connect(){
 		fmt.Println("Tables exist! No migrations needed.")
 		fmt.Println()
 	}
+
+	return db, nil
 }

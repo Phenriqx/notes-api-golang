@@ -6,14 +6,19 @@ import (
 	"os"
 
 	"github.com/phenriqx/notes-api/handlers"
-	"github.com/phenriqx/notes-api/db"
+	"github.com/phenriqx/notes-api/database"
 
 	"github.com/gorilla/mux"
 	"github.com/joho/godotenv"
 )
 
 func main(){
-	db.Connect()
+	db, err := database.Connect()
+	if err != nil {
+		fmt.Printf("Connection error: %v\n", err)
+		return
+	}
+	_ = db
 
 	if err := godotenv.Load(); err != nil {
 		fmt.Printf("error loading godotenv: %v\n", err)
@@ -24,9 +29,9 @@ func main(){
 	fmt.Println("Initializing routers...")
 	myRouter := mux.NewRouter()
 
-	myRouter.HandleFunc("/notes", handlers.GetNotesHandler).Methods("GET")
-	myRouter.HandleFunc("/notes/new", handlers.CreateNoteHandler).Methods("POST")
-	myRouter.HandleFunc("/notes/{id}", handlers.GetNoteByIDHandler).Methods("GET")
+	myRouter.HandleFunc("/notes", handlers.GetNotesHandler(db)).Methods("GET")
+	myRouter.HandleFunc("/notes/new", handlers.CreateNoteHandler(db)).Methods("POST")
+	myRouter.HandleFunc("/note/{id}", handlers.GetNoteByIDHandler).Methods("GET")
 	myRouter.HandleFunc("/login", handlers.LoginHandler).Methods("POST")
 	myRouter.HandleFunc("/logout", handlers.RegisterHandler).Methods("POST")
 	myRouter.HandleFunc("/register", handlers.LogoutHandler).Methods("POST")
