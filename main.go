@@ -7,8 +7,10 @@ import (
 
 	"github.com/phenriqx/notes-api/handlers"
 	"github.com/phenriqx/notes-api/database"
+	"github.com/phenriqx/notes-api/config"
 
 	"github.com/gorilla/mux"
+	"github.com/gorilla/sessions"
 	"github.com/joho/godotenv"
 )
 
@@ -23,6 +25,8 @@ func main(){
 		fmt.Printf("error loading godotenv: %v\n", err)
 		return
 	}
+
+	config.Sessions = sessions.NewCookieStore([]byte(os.Getenv("STORE_SECRET_KEY")))
 	port := os.Getenv("PORT")
 
 	fmt.Println("Initializing routers...")
@@ -31,7 +35,7 @@ func main(){
 	myRouter.HandleFunc("/notes", handlers.GetNotesHandler(db)).Methods("GET")
 	myRouter.HandleFunc("/notes/new", handlers.CreateNoteHandler(db)).Methods("POST")
 	myRouter.HandleFunc("/note/{id}", handlers.GetNoteByIDHandler).Methods("GET")
-	myRouter.HandleFunc("/login", handlers.LoginHandler).Methods("GET", "POST")
+	myRouter.HandleFunc("/login", handlers.LoginHandler(db)).Methods("POST")
 	myRouter.HandleFunc("/register", handlers.RegisterHandler(db)).Methods("GET", "POST")
 	myRouter.HandleFunc("/logout", handlers.LogoutHandler).Methods("GET", "POST")
 
