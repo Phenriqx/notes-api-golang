@@ -16,6 +16,26 @@ import (
 	"gorm.io/gorm"
 )
 
+// Middleware is a design pattern that refers to functions or components that sit between an incoming HTTP request and the final handler that processes it.
+// Middleware intercepts, processes, or modifies requests and responses as they flow through your application, 
+// allowing you to add reusable functionality like authentication, logging, or error handling without duplicating code in every handler.
+func AuthRequiredMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		session, err := config.Sessions.Get(r, "auth-session")
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		if session.Values["user_id"] == nil {
+			http.Error(w, fmt.Sprintf("Error: Authentication Required.\nStatus Code: %d", http.StatusUnauthorized), http.StatusUnauthorized)
+            return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
 func RegisterHandler(db *gorm.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

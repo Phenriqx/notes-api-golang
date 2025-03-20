@@ -54,8 +54,10 @@ func CreateNoteHandler(db *gorm.DB) http.HandlerFunc {
 	}
 }
 
-func GetNoteByIDHandler(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	id := vars["id"]
-	fmt.Fprintf(w, "User ID: %s\n", id)
-}
+func GetNoteByIDHandler(db *gorm.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		vars := mux.Vars(r)
+		id := vars["id"]
+		fmt.Fprintf(w, "User ID: %s\n", id)
+	}
+	}

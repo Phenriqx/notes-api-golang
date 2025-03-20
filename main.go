@@ -32,9 +32,9 @@ func main(){
 	fmt.Println("Initializing routers...")
 	myRouter := mux.NewRouter()
 
-	myRouter.HandleFunc("/notes", handlers.GetNotesHandler(db)).Methods("GET")
-	myRouter.HandleFunc("/notes/new", handlers.CreateNoteHandler(db)).Methods("POST")
-	myRouter.HandleFunc("/note/{id}", handlers.GetNoteByIDHandler).Methods("GET")
+	myRouter.Handle("/notes", handlers.AuthRequiredMiddleware(handlers.GetNotesHandler(db))).Methods("GET")
+	myRouter.Handle("/notes/new", handlers.AuthRequiredMiddleware(handlers.CreateNoteHandler(db))).Methods("POST")
+	myRouter.Handle("/note/{id}", handlers.AuthRequiredMiddleware(handlers.GetNoteByIDHandler(db))).Methods("GET")
 	myRouter.HandleFunc("/login", handlers.LoginHandler(db)).Methods("POST")
 	myRouter.HandleFunc("/register", handlers.RegisterHandler(db)).Methods("GET", "POST")
 	myRouter.HandleFunc("/logout", handlers.LogoutHandler).Methods("GET", "POST")
