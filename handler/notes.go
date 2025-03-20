@@ -1,7 +1,7 @@
 // Manages note-related routes: list notes (GET /notes), create note (GET/POST /notes/new, /notes), view note (GET /notes/{id}),
 // edit note (GET/POST /notes/{id}/edit, /notes/{id}), delete note (POST /notes/{id}/delete).
 
-package handlers
+package handler
 
 import (
 	"encoding/json"
@@ -16,11 +16,21 @@ import (
 
 func GetNotesHandler(db *gorm.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
 		var notes []models.Notes
 		db.Find(&notes)
-
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(notes)
+		userID, ok := r.Context().Value("user_id").(uint) // Adjust type based on models.User.ID
+		if !ok {
+			http.Error(w, "User ID not found in context", http.StatusInternalServerError)
+			return
+		}
+        if err := db.Where("user_id = ?", userID).Find(&notes).Error; err != nil {
+            json.NewEncoder(w).Encode(map[string]string{"error": "Failed to fetch notes"})
+            w.WriteHeader(http.StatusInternalServerError)
+            return
+        }
+        json.NewEncoder(w).Encode(notes)
 	}
 }
 
@@ -49,7 +59,7 @@ func CreateNoteHandler(db *gorm.DB) http.HandlerFunc {
 
 		w.WriteHeader(http.StatusCreated)
 		json.NewEncoder(w).Encode(map[string]string{
-			"message" : "Note created successfully",
+			"message": "Note created successfully",
 		})
 	}
 }
@@ -60,4 +70,4 @@ func GetNoteByIDHandler(db *gorm.DB) http.HandlerFunc {
 		id := vars["id"]
 		fmt.Fprintf(w, "User ID: %s\n", id)
 	}
-	}
+}
