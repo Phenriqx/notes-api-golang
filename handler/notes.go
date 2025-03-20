@@ -5,7 +5,6 @@ package handler
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 
 	"github.com/phenriqx/notes-api/models"
@@ -52,10 +51,6 @@ func CreateNoteHandler(db *gorm.DB) http.HandlerFunc {
 		}
 
 		db.Create(&note)
-		fmt.Println(note.UserID)
-		fmt.Println(note.Title)
-		fmt.Println(note.Content)
-		fmt.Println(note.CreatedAt)
 
 		w.WriteHeader(http.StatusCreated)
 		json.NewEncoder(w).Encode(map[string]string{
@@ -66,8 +61,16 @@ func CreateNoteHandler(db *gorm.DB) http.HandlerFunc {
 
 func GetNoteByIDHandler(db *gorm.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
 		vars := mux.Vars(r)
 		id := vars["id"]
-		fmt.Fprintf(w, "User ID: %s\n", id)
+		var note models.Notes
+		if err := db.Where("id = ?", id).First(&note).Error; err != nil {
+			http.Error(w, "Error fetching note.", http.StatusNotFound)
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(note)
 	}
 }
