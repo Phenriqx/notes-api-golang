@@ -5,6 +5,7 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/phenriqx/notes-api/models"
@@ -13,23 +14,27 @@ import (
 	"github.com/gorilla/mux"
 )
 
-func GetNotesHandler(db *gorm.DB) http.HandlerFunc {
+type NoteStore interface {
+	FindNotesByUserID(userID uint) ([]models.Notes, error)
+}
+
+func GetNotesHandler(notes NoteStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
-		var notes []models.Notes
-		db.Find(&notes)
-		userID, ok := r.Context().Value("user_id").(uint) // Adjust type based on models.User.ID
-		if !ok {
-			http.Error(w, "User ID not found in context", http.StatusInternalServerError)
-			return
-		}
-        if err := db.Where("user_id = ?", userID).Find(&notes).Error; err != nil {
-            json.NewEncoder(w).Encode(map[string]string{"error": "Failed to fetch notes"})
+		userID, ok := r.Context().Value("user_id").(uint)
+        if !ok {
             w.WriteHeader(http.StatusInternalServerError)
+            json.NewEncoder(w).Encode(map[string]string{"error": "User ID not found"})
             return
         }
-        json.NewEncoder(w).Encode(notes)
+
+		notes, err := notes.FindNotesByUserID(userID)
+        if err != nil {
+            http.Error(w, "Error fetching notes from database.", http.StatusInternalServerError)
+            return
+        }
+		json.NewEncoder(w).Encode(notes)
 	}
 }
 
@@ -72,5 +77,17 @@ func GetNoteByIDHandler(db *gorm.DB) http.HandlerFunc {
 
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(note)
+	}
+}
+
+func EditNoteHandler(db *gorm.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		fmt.Println("Edit note")
+	}
+}
+
+func DeleteNoteHandler(db *gorm.DB) http.HandlerFunc {
+	return func (w http.ResponseWriter, r *http.Request) {
+		fmt.Println("Delete note")
 	}
 }

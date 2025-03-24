@@ -2,14 +2,38 @@ package database
 
 import (
 	"fmt"
+	"log"
 	"os"
 
 	"github.com/phenriqx/notes-api/models"
 
-	"gorm.io/gorm"
-	"gorm.io/driver/postgres"
 	"github.com/joho/godotenv"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
+
+type GormStore struct {
+	DB *gorm.DB
+}
+
+func (db *GormStore) GetUserByUsername(username string) (models.User, error) {
+	var user models.User
+	if err := db.DB.Where("username = ?", username).First(&user).Error; err != nil {
+		log.Println("Error getting user from database: ", err)
+		return models.User{}, err
+	}
+
+	return user, nil
+}
+
+func (db *GormStore) FindNotesByUserID(userID uint) ([]models.Notes, error) {
+	var notes []models.Notes
+	if err := db.DB.Where("user_id = ?", userID).First(&notes).Error; err != nil {
+		log.Println("Error getting notes from database: ", err)
+		return nil, err
+	} 
+	return notes, nil
+}
 
 func Connect() (*gorm.DB, error) {
 	if err := godotenv.Load(); err != nil {
@@ -27,7 +51,7 @@ func Connect() (*gorm.DB, error) {
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
 		fmt.Printf("Error connecting to the database: %v\n", err)
-        return nil, err
+		return nil, err
 	}
 	fmt.Println("Database connection successful!")
 
