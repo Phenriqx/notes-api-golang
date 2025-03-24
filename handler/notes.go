@@ -18,22 +18,22 @@ type NoteStore interface {
 	FindNotesByUserID(userID uint) ([]models.Notes, error)
 }
 
-func GetNotesHandler(db *gorm.DB) http.HandlerFunc {
+func GetNotesHandler(notes NoteStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
-		var notes []models.Notes
-		db.Find(&notes)
-		userID, ok := r.Context().Value("user_id").(uint) // Adjust type based on models.User.ID
-		if !ok {
-			http.Error(w, "User ID not found in context", http.StatusInternalServerError)
-			return
-		}
-		if err := db.Where("user_id = ?", userID).Find(&notes).Error; err != nil {
-			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to fetch notes"})
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
+		userID, ok := r.Context().Value("user_id").(uint)
+        if !ok {
+            w.WriteHeader(http.StatusInternalServerError)
+            json.NewEncoder(w).Encode(map[string]string{"error": "User ID not found"})
+            return
+        }
+
+		notes, err := notes.FindNotesByUserID(userID)
+        if err != nil {
+            http.Error(w, "Error fetching notes from database.", http.StatusInternalServerError)
+            return
+        }
 		json.NewEncoder(w).Encode(notes)
 	}
 }

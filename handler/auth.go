@@ -11,7 +11,6 @@ import (
 	"net/http"
 
 	"github.com/gorilla/sessions"
-	"github.com/phenriqx/notes-api/config"
 	"github.com/phenriqx/notes-api/models"
 
 	"golang.org/x/crypto/bcrypt"
@@ -30,16 +29,16 @@ type SessionStore interface {
 // Middleware is a design pattern that refers to functions or components that sit between an incoming HTTP request and the final handler that processes it.
 // Middleware intercepts, processes, or modifies requests and responses as they flow through your application,
 // allowing you to add reusable functionality like authentication, logging, or error handling without duplicating code in every handler.
-func AuthRequiredMiddleware(next http.Handler) http.Handler {
+func AuthRequiredMiddleware(sessions SessionStore, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		session, err := config.Sessions.Get(r, "auth-session")
-
+		session, err := sessions.Get(r, "auth-session")
 		if err != nil {
 			log.Printf("Session error: %v", err)
 			http.Error(w, `{"error":"Internal server error"}`, http.StatusInternalServerError)
 			return
 		}
+
 		userID, ok := session.Values["user_id"]
 		if !ok {
 			log.Println("No user_id found in session")
@@ -96,7 +95,7 @@ func RegisterHandler(db *gorm.DB) http.HandlerFunc {
 	}
 }
 
-func LoginHandler(db *gorm.DB) http.HandlerFunc {
+func LoginHandler(users UserStore, sessions SessionStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		var loginRequest models.LoginRequest
@@ -105,12 +104,13 @@ func LoginHandler(db *gorm.DB) http.HandlerFunc {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-
-		var user models.User
-		result := db.Where("username = ?", loginRequest.Username).First(&user)
-		err = result.Error
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			http.Error(w, "User not found.", http.StatusNotFound)
+		user, err := users.GetUserByUsername(loginRequest.Username)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				http.Error(w, "User not found", http.StatusNotFound)
+                return
+			}
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
 			return
 		}
 
@@ -119,11 +119,13 @@ func LoginHandler(db *gorm.DB) http.HandlerFunc {
 			return
 		}
 
-		session, err := config.Sessions.Get(r, "auth-session") // Using sessions to keep track of logged in users => The browser gets a cookie named auth-session
+		session, err := sessions.Get(r, "auth-session")
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
+			log.Printf("Error getting session: %v", err)
+            http.Error(w, "Failed to get session.", http.StatusInternalServerError)
+            return
 		}
+
 		session.Values["user_id"] = user.ID
 		if err := session.Save(r, w); err != nil {
 			log.Printf("Error saving session: %v", err)
