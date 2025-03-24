@@ -39,10 +39,10 @@ func main() {
 	myRouter.Handle("/notes/new", handler.AuthRequiredMiddleware(sessionStore, handler.CreateNoteHandler(db))).Methods("POST")
 	myRouter.Handle("/note/{id}", handler.AuthRequiredMiddleware(sessionStore, handler.GetNoteByIDHandler(db))).Methods("GET")
 	myRouter.HandleFunc("/login", handler.LoginHandler(gormStore, sessionStore)).Methods("POST")
-	myRouter.HandleFunc("/register", handler.RegisterHandler(db)).Methods("GET", "POST")
+	myRouter.HandleFunc("/register", handler.RegisterHandler(gormStore)).Methods("GET", "POST")
 	myRouter.HandleFunc("/logout", handler.LogoutHandler).Methods("GET", "POST")
 
-	http.Handle("/", myRouter)
+	http.Handle("/v", myRouter)
 
 	corsMw, err := cors.NewMiddleware(cors.Config{
 		Origins:        []string{"http://localhost:8080"},

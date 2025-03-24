@@ -26,12 +26,33 @@ func (db *GormStore) GetUserByUsername(username string) (models.User, error) {
 	return user, nil
 }
 
+func (db *GormStore) SaveUser(username, email, password string) error {
+	newUser := models.User{
+		Username: username,
+		Email:    email,
+		Password: password,
+	}
+
+	if err := db.DB.Where("username = ? OR email = ?", username, email).First(&newUser).Error; err == nil {
+		log.Printf("User already exists in the database: %v", err)
+		return err
+	}
+
+	if result := db.DB.Create(&newUser); result.Error != nil {
+		log.Printf("Error creating user in the database: %v", result.Error)
+        return result.Error
+	}
+
+	return nil
+}
+
 func (db *GormStore) FindNotesByUserID(userID uint) ([]models.Notes, error) {
 	var notes []models.Notes
-	if err := db.DB.Where("user_id = ?", userID).First(&notes).Error; err != nil {
+	if err := db.DB.Where("user_id = ?", userID).Find(&notes).Error; err != nil {
 		log.Println("Error getting notes from database: ", err)
 		return nil, err
-	} 
+	}
+
 	return notes, nil
 }
 

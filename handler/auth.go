@@ -19,6 +19,7 @@ import (
 
 type UserStore interface {
 	GetUserByUsername(username string) (models.User, error)
+	SaveUser(username, email, password string) error
 }
 
 type SessionStore interface {
@@ -52,7 +53,7 @@ func AuthRequiredMiddleware(sessions SessionStore, next http.Handler) http.Handl
 	})
 }
 
-func RegisterHandler(db *gorm.DB) http.HandlerFunc {
+func RegisterHandler(users UserStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		var registerRequest models.RegisterRequest
@@ -71,20 +72,14 @@ func RegisterHandler(db *gorm.DB) http.HandlerFunc {
 			return
 		}
 
-		user := models.User{
-			Username: registerRequest.Username,
-			Email:    registerRequest.Email,
-			Password: string(hashedPassword),
-		}
-		if err := db.Where("username = ? OR email = ?", user.Username, user.Email).
-			First(&user).Error; err == nil {
-			http.Error(w, "This user already exists in the database", http.StatusConflict) // Returns status code 409 indicating that the request could not be completed
-			return
-		}
-
-		if result := db.Create(&user); result.Error != nil {
-			http.Error(w, result.Error.Error(), http.StatusInternalServerError)
-			return
+		result := users.SaveUser(
+			registerRequest.Username,
+			registerRequest.Email,
+			string(hashedPassword),
+		)
+		if result != nil {
+			http.Error(w, result.Error(), http.StatusInternalServerError)
+            return
 		}
 
 		w.WriteHeader(http.StatusCreated)
