@@ -10,12 +10,22 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/gorilla/sessions"
 	"github.com/phenriqx/notes-api/config"
 	"github.com/phenriqx/notes-api/models"
 
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
+
+type UserStore interface {
+	GetUserByUsername(username string) (*models.User, error)
+}
+
+type SessionStore interface {
+	Get(r *http.Request, name string) (*sessions.Session, error)
+	Save(r *http.Request,  w http.ResponseWriter, session *sessions.Session) error
+}
 
 // Middleware is a design pattern that refers to functions or components that sit between an incoming HTTP request and the final handler that processes it.
 // Middleware intercepts, processes, or modifies requests and responses as they flow through your application,
@@ -119,7 +129,7 @@ func LoginHandler(db *gorm.DB) http.HandlerFunc {
 			log.Printf("Error saving session: %v", err)
 			http.Error(w, "Failed to save session.", http.StatusInternalServerError)
 			return
-		} 
+		}
 
 		log.Println("Session saved successfully")
 
