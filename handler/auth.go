@@ -19,7 +19,7 @@ import (
 )
 
 type UserStore interface {
-	GetUserByUsername(username string) (*models.User, error)
+	GetUserByUsername(username string) (models.User, error)
 }
 
 type SessionStore interface {

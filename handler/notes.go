@@ -15,7 +15,7 @@ import (
 )
 
 type NoteStore interface {
-	FindNotesByUserID(userID uint) (*models.Notes, error)
+	FindNotesByUserID(userID uint) ([]models.Notes, error)
 }
 
 func GetNotesHandler(db *gorm.DB) http.HandlerFunc {
