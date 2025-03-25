@@ -1,6 +1,7 @@
 package database
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -40,7 +41,7 @@ func (db *GormStore) SaveUser(username, email, password string) error {
 
 	if result := db.DB.Create(&newUser); result.Error != nil {
 		log.Printf("Error creating user in the database: %v", result.Error)
-        return result.Error
+		return result.Error
 	}
 
 	return nil
@@ -65,11 +66,25 @@ func (db *GormStore) DeleteNotesWithID(noteID string) error {
 
 	if err := db.DB.Delete(&note).Error; err != nil {
 		log.Printf("Error deleting note from database: %v", err)
-	    return err
+		return err
 	}
 
 	log.Printf("Note deleted from database with ID: %s", noteID)
 	return nil
+}
+
+func (db *GormStore) GetNoteByID(noteID string) (models.Notes, error) {
+	var note models.Notes
+	if err := db.DB.Where("id = ?", noteID).First(&note).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			log.Println("Record not found.")
+			return models.Notes{}, err
+		}
+		log.Println("Error getting note from database: ", err)
+		return models.Notes{}, err
+	}
+
+	return note, nil
 }
 
 func Connect() (*gorm.DB, error) {

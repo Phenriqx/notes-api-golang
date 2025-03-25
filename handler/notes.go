@@ -5,7 +5,7 @@ package handler
 
 import (
 	"encoding/json"
-	"fmt"
+	"log"
 	"net/http"
 
 	"github.com/phenriqx/notes-api/models"
@@ -17,6 +17,7 @@ import (
 type NoteStore interface {
 	FindNotesByUserID(userID uint) ([]models.Notes, error)
 	DeleteNotesWithID(noteID string) error
+	GetNoteByID(noteID string) (models.Notes, error)
 }
 
 func GetNotesHandler(notes NoteStore) http.HandlerFunc {
@@ -24,17 +25,17 @@ func GetNotesHandler(notes NoteStore) http.HandlerFunc {
 		w.Header().Set("Content-Type", "application/json")
 
 		userID, ok := r.Context().Value("user_id").(uint)
-        if !ok {
-            w.WriteHeader(http.StatusInternalServerError)
-            json.NewEncoder(w).Encode(map[string]string{"error": "User ID not found"})
-            return
-        }
+		if !ok {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "User ID not found"})
+			return
+		}
 
 		notes, err := notes.FindNotesByUserID(userID)
-        if err != nil {
-            http.Error(w, "Error fetching notes from database.", http.StatusInternalServerError)
-            return
-        }
+		if err != nil {
+			http.Error(w, "Error fetching notes from database.", http.StatusInternalServerError)
+			return
+		}
 		json.NewEncoder(w).Encode(notes)
 	}
 }
@@ -65,14 +66,14 @@ func CreateNoteHandler(db *gorm.DB) http.HandlerFunc {
 	}
 }
 
-func GetNoteByIDHandler(db *gorm.DB) http.HandlerFunc {
+func GetNoteByIDHandler(notes NoteStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		vars := mux.Vars(r)
 		id := vars["id"]
-		var note models.Notes
-		if err := db.Where("id = ?", id).First(&note).Error; err != nil {
-			http.Error(w, "Error fetching note.", http.StatusNotFound)
+		note, err := notes.GetNoteByID(id)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusNotFound)
 			return
 		}
 
@@ -81,14 +82,43 @@ func GetNoteByIDHandler(db *gorm.DB) http.HandlerFunc {
 	}
 }
 
-func EditNoteHandler(db *gorm.DB) http.HandlerFunc {
+func EditNoteHandler(notes NoteStore, db *gorm.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		fmt.Println("Edit note")
+		w.Header().Set("Content-Type", "application/json")
+		vars := mux.Vars(r)
+		id := vars["id"]
+
+		oldNote, err := notes.GetNoteByID(id)
+		if err != nil {
+			http.Error(w, "Error fetching note from database.", http.StatusNotFound)
+            log.Printf("Error fetching note from database: %v", err)
+            return
+		}
+
+		var updatedNote models.Notes
+		if err := json.NewDecoder(r.Body).Decode(&updatedNote); err != nil {
+			http.Error(w, "Error decoding note.", http.StatusInternalServerError)
+			log.Printf("Error decoding note: %v", err)
+			return
+		}
+
+		if len(updatedNote.Title) <= 0 || len(updatedNote.Content) <= 0 {
+			http.Error(w, "Title and content fields must not be empty.", http.StatusBadRequest)
+			return
+		}
+		oldNote.Title = updatedNote.Title
+		oldNote.Content = updatedNote.Content		
+
+		db.Save(&oldNote)		
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{
+			"Message": "Note updated successfully",
+		})
 	}
 }
 
 func DeleteNoteHandler(notes NoteStore) http.HandlerFunc {
-	return func (w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		vars := mux.Vars(r)
 		id := vars["id"]
