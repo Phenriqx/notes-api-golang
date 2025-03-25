@@ -56,6 +56,22 @@ func (db *GormStore) FindNotesByUserID(userID uint) ([]models.Notes, error) {
 	return notes, nil
 }
 
+func (db *GormStore) DeleteNotesWithID(noteID string) error {
+	var note models.Notes
+	if err := db.DB.Where("id = ?", noteID).First(&note).Error; err != nil {
+		log.Printf("Error getting note from database: %v", err)
+		return err
+	}
+
+	if err := db.DB.Delete(&note).Error; err != nil {
+		log.Printf("Error deleting note from database: %v", err)
+	    return err
+	}
+
+	log.Printf("Note deleted from database with ID: %s", noteID)
+	return nil
+}
+
 func Connect() (*gorm.DB, error) {
 	if err := godotenv.Load(); err != nil {
 		fmt.Printf("error loading godotenv: %v\n", err)

@@ -35,9 +35,13 @@ func main() {
 	fmt.Println("Initializing routers...")
 	myRouter := mux.NewRouter()
 
+	// Note routes
 	myRouter.Handle("/notes", handler.AuthRequiredMiddleware(sessionStore, handler.GetNotesHandler(gormStore))).Methods("GET")
 	myRouter.Handle("/notes/new", handler.AuthRequiredMiddleware(sessionStore, handler.CreateNoteHandler(db))).Methods("POST")
 	myRouter.Handle("/note/{id}", handler.AuthRequiredMiddleware(sessionStore, handler.GetNoteByIDHandler(db))).Methods("GET")
+	myRouter.Handle("/note/{id}/delete", handler.AuthRequiredMiddleware(sessionStore, handler.DeleteNoteHandler(gormStore))).Methods("POST")
+
+	// Authentication routes
 	myRouter.HandleFunc("/login", handler.LoginHandler(gormStore, sessionStore)).Methods("POST")
 	myRouter.HandleFunc("/register", handler.RegisterHandler(gormStore)).Methods("GET", "POST")
 	myRouter.HandleFunc("/logout", handler.LogoutHandler).Methods("GET", "POST")

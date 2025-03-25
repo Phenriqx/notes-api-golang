@@ -16,6 +16,7 @@ import (
 
 type NoteStore interface {
 	FindNotesByUserID(userID uint) ([]models.Notes, error)
+	DeleteNotesWithID(noteID string) error
 }
 
 func GetNotesHandler(notes NoteStore) http.HandlerFunc {
@@ -86,8 +87,19 @@ func EditNoteHandler(db *gorm.DB) http.HandlerFunc {
 	}
 }
 
-func DeleteNoteHandler(db *gorm.DB) http.HandlerFunc {
+func DeleteNoteHandler(notes NoteStore) http.HandlerFunc {
 	return func (w http.ResponseWriter, r *http.Request) {
-		fmt.Println("Delete note")
+		w.Header().Set("Content-Type", "application/json")
+		vars := mux.Vars(r)
+		id := vars["id"]
+		if err := notes.DeleteNotesWithID(id); err != nil {
+			http.Error(w, "Error deleting note with this specific ID.", http.StatusNotFound)
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{
+			"Message": "Note deleted successfully",
+		})
 	}
 }
