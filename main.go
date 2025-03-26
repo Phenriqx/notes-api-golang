@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/phenriqx/notes-api/config"
 	"github.com/phenriqx/notes-api/database"
 	"github.com/phenriqx/notes-api/handler"
 
@@ -31,7 +30,6 @@ func main() {
 
 	// Interface settings
 	gormStore := &database.GormStore{DB: db}
-	sessionStore := &config.CookieSessionStore{Store: config.Sessions}
 
 	// Logging configuration
 	handlerOptions := &slog.HandlerOptions{
@@ -55,14 +53,14 @@ func main() {
 	})
 
 	// Note routes
-	v1.Handle("/notes", handler.AuthRequiredMiddleware(sessionStore, handler.GetNotesHandler(gormStore))).Methods("GET")
-	v1.Handle("/notes/new", handler.AuthRequiredMiddleware(sessionStore, handler.CreateNoteHandler(db))).Methods("POST")
-	v1.Handle("/note/{id}", handler.AuthRequiredMiddleware(sessionStore, handler.GetNoteByIDHandler(gormStore))).Methods("GET")
-	v1.Handle("/note/{id}/delete", handler.AuthRequiredMiddleware(sessionStore, handler.DeleteNoteHandler(gormStore))).Methods("POST")
-	v1.Handle("/note/{id}/update", handler.AuthRequiredMiddleware(sessionStore, handler.EditNoteHandler(gormStore, db))).Methods("POST")
+	v1.Handle("/notes", handler.AuthRequiredMiddleware(handler.GetNotesHandler(gormStore))).Methods("GET")
+	v1.Handle("/notes/new", handler.AuthRequiredMiddleware(handler.CreateNoteHandler(db))).Methods("POST")
+	v1.Handle("/note/{id}", handler.AuthRequiredMiddleware(handler.GetNoteByIDHandler(gormStore))).Methods("GET")
+	v1.Handle("/note/{id}/delete", handler.AuthRequiredMiddleware(handler.DeleteNoteHandler(gormStore))).Methods("POST")
+	v1.Handle("/note/{id}/update", handler.AuthRequiredMiddleware(handler.EditNoteHandler(gormStore, db))).Methods("POST")
 
 	// Authentication routes
-	v1.HandleFunc("/login", handler.LoginHandler(gormStore, sessionStore)).Methods("POST")
+	v1.HandleFunc("/login", handler.LoginHandler(gormStore)).Methods("POST")
 	v1.HandleFunc("/register", handler.RegisterHandler(gormStore)).Methods("GET", "POST")
 	v1.HandleFunc("/logout", handler.LogoutHandler).Methods("GET", "POST")
 

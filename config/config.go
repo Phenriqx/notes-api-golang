@@ -1,10 +1,23 @@
 package config
 
 import (
+	"log/slog"
 	"net/http"
+	"os"
 
 	"github.com/gorilla/sessions"
+	"github.com/joho/godotenv"
 )
+
+func LoadJWTSecretKey() ([]byte, error) {
+	if err := godotenv.Load(); err != nil {
+		slog.Error("Error laoding JWT Secret key", "error", err)
+		return nil, err
+	}
+
+	secret_key := []byte(os.Getenv("JWT_SECRET_KEY"))
+	return secret_key, nil
+}
 
 type CookieSessionStore struct {
 	Store *sessions.CookieStore

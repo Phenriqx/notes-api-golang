@@ -9,13 +9,22 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
+	"time"
 
 	"github.com/gorilla/sessions"
+	"github.com/phenriqx/notes-api/config"
 	"github.com/phenriqx/notes-api/models"
 
+	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
+
+type Credentials struct {
+	UserID uint `json:"user_id"`
+	jwt.RegisteredClaims
+}
 
 type UserStore interface {
 	GetUserByUsername(username string) (models.User, error)
@@ -24,31 +33,48 @@ type UserStore interface {
 
 type SessionStore interface {
 	Get(r *http.Request, name string) (*sessions.Session, error)
-	Save(r *http.Request,  w http.ResponseWriter, session *sessions.Session) error
+	Save(r *http.Request, w http.ResponseWriter, session *sessions.Session) error
 }
 
 // Middleware is a design pattern that refers to functions or components that sit between an incoming HTTP request and the final handler that processes it.
 // Middleware intercepts, processes, or modifies requests and responses as they flow through your application,
 // allowing you to add reusable functionality like authentication, logging, or error handling without duplicating code in every handler.
-func AuthRequiredMiddleware(sessions SessionStore, next http.Handler) http.Handler {
+func AuthRequiredMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		session, err := sessions.Get(r, "auth-session")
-		if err != nil {
-			slog.Error("Session error: ", "error", err)
-			http.Error(w, `{"error":"Internal server error"}`, http.StatusInternalServerError)
-			return
-		}
-
-		userID, ok := session.Values["user_id"]
-		if !ok {
-			slog.Error("No used_id found in session", "error", err)
-			http.Error(w, `{"error":"Internal server error"}`, http.StatusInternalServerError)
+		
+		authHeader := r.Header.Get("Authorization")
+		slog.Info("AUTH HEADER RECEIVED", "header", r.Header.Get("Authorization"))
+		if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
+			slog.Error("No authorization header", "method", r.Method)
 			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Authentication required",
+			})
 			return
 		}
 
-		ctx := context.WithValue(r.Context(), "user_id", userID)
+		// Get token from Authorization header (Bearer <token>)
+		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
+		claims := &Credentials{}
+		token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+			}
+			jwtSecret, _ := config.LoadJWTSecretKey()
+			return jwtSecret, nil
+		})
+		if err != nil || !token.Valid {
+			slog.Error("Error validating JWT token", "error", err)
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Invalid or expired token",
+			})
+			return
+		}
+
+		slog.Info("User authenticated", "user_id", claims.UserID)
+		ctx := context.WithValue(r.Context(), "user_id", claims.UserID)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
@@ -81,7 +107,7 @@ func RegisterHandler(users UserStore) http.HandlerFunc {
 		)
 		if result != nil {
 			http.Error(w, result.Error(), http.StatusInternalServerError)
-            return
+			return
 		}
 
 		w.WriteHeader(http.StatusCreated)
@@ -92,7 +118,7 @@ func RegisterHandler(users UserStore) http.HandlerFunc {
 	}
 }
 
-func LoginHandler(users UserStore, sessions SessionStore) http.HandlerFunc {
+func LoginHandler(users UserStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		var loginRequest models.LoginRequest
@@ -106,7 +132,7 @@ func LoginHandler(users UserStore, sessions SessionStore) http.HandlerFunc {
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				http.Error(w, "User not found", http.StatusNotFound)
-                return
+				return
 			}
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
 			return
@@ -118,23 +144,17 @@ func LoginHandler(users UserStore, sessions SessionStore) http.HandlerFunc {
 			return
 		}
 
-		session, err := sessions.Get(r, "auth-session")
+		tokenString, err := CreateToken(user.ID)
 		if err != nil {
-			slog.Error("Error getting session", "error", err)
-            http.Error(w, "Failed to get session.", http.StatusInternalServerError)
+			slog.Error("Error creating JWT token", "error", err)
+            http.Error(w, "Internal server error", http.StatusInternalServerError)
             return
-		}
-
-		session.Values["user_id"] = user.ID
-		if err := session.Save(r, w); err != nil {
-			slog.Error("Error saving session", "error", err)
-			http.Error(w, "Failed to save session.", http.StatusInternalServerError)
-			return
 		}
 
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]string{
 			"message": "Logged in successfully",
+			"token": tokenString,
 		})
 		slog.Info("User logged in succesfully")
 	}
@@ -143,4 +163,29 @@ func LoginHandler(users UserStore, sessions SessionStore) http.HandlerFunc {
 func LogoutHandler(w http.ResponseWriter, r *http.Request) {
 	// Implement logic to handle user logout
 	fmt.Fprintf(w, "Logout user")
+}
+
+func CreateToken(userID uint) (string, error) {
+	JWTSecretKey, err := config.LoadJWTSecretKey()
+	if err != nil {
+		slog.Error("Error loading JWT key to create token", "error", err)
+		return "", err
+	}
+
+	claims := &Credentials{
+		UserID: userID,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			Issuer:    "notes-api",
+		},
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := token.SignedString(JWTSecretKey)
+	if err != nil {
+		slog.Error("Error creating JWT token", "error", err)
+		return "", err
+	}
+
+	return tokenString, nil
 }
