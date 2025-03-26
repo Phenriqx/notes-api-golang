@@ -3,7 +3,7 @@ package database
 import (
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 
 	"github.com/phenriqx/notes-api/models"
@@ -20,7 +20,11 @@ type GormStore struct {
 func (db *GormStore) GetUserByUsername(username string) (models.User, error) {
 	var user models.User
 	if err := db.DB.Where("username = ?", username).First(&user).Error; err != nil {
-		log.Println("Error getting user from database: ", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			slog.Error("User not found in database.")
+			return models.User{}, err
+		}
+		slog.Error("Error getting user from database", "error", err)
 		return models.User{}, err
 	}
 
@@ -35,12 +39,12 @@ func (db *GormStore) SaveUser(username, email, password string) error {
 	}
 
 	if err := db.DB.Where("username = ? OR email = ?", username, email).First(&newUser).Error; err == nil {
-		log.Printf("User already exists in the database: %v", err)
+		slog.Error("User already exists in the database:",  "error", err)
 		return err
 	}
 
 	if result := db.DB.Create(&newUser); result.Error != nil {
-		log.Printf("Error creating user in the database: %v", result.Error)
+		slog.Error("Error creating user in the database: ", "error", result)
 		return result.Error
 	}
 
@@ -50,7 +54,7 @@ func (db *GormStore) SaveUser(username, email, password string) error {
 func (db *GormStore) FindNotesByUserID(userID uint) ([]models.Notes, error) {
 	var notes []models.Notes
 	if err := db.DB.Where("user_id = ?", userID).Find(&notes).Error; err != nil {
-		log.Println("Error getting notes from database: ", err)
+		slog.Error("Error getting notes from database: ", "error", err)
 		return nil, err
 	}
 
@@ -60,16 +64,16 @@ func (db *GormStore) FindNotesByUserID(userID uint) ([]models.Notes, error) {
 func (db *GormStore) DeleteNotesWithID(noteID string) error {
 	var note models.Notes
 	if err := db.DB.Where("id = ?", noteID).First(&note).Error; err != nil {
-		log.Printf("Error getting note from database: %v", err)
+		slog.Error("Error getting note from database: ", "error", err)
 		return err
 	}
 
 	if err := db.DB.Delete(&note).Error; err != nil {
-		log.Printf("Error deleting note from database: %v", err)
+		slog.Error("Error deleting note from database: ", "error", err)
 		return err
 	}
 
-	log.Printf("Note deleted from database with ID: %s", noteID)
+	slog.Info("Note deleted succesfully.")
 	return nil
 }
 
@@ -77,10 +81,10 @@ func (db *GormStore) GetNoteByID(noteID string) (models.Notes, error) {
 	var note models.Notes
 	if err := db.DB.Where("id = ?", noteID).First(&note).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			log.Println("Record not found.")
+			slog.Error("Record not found.")
 			return models.Notes{}, err
 		}
-		log.Println("Error getting note from database: ", err)
+		slog.Error("Error getting note from database: ", "error", err)
 		return models.Notes{}, err
 	}
 
@@ -89,7 +93,7 @@ func (db *GormStore) GetNoteByID(noteID string) (models.Notes, error) {
 
 func Connect() (*gorm.DB, error) {
 	if err := godotenv.Load(); err != nil {
-		fmt.Printf("error loading godotenv: %v\n", err)
+		slog.Error("Error loading godotenv: ", "error", err)
 		return nil, err
 	}
 
@@ -102,19 +106,17 @@ func Connect() (*gorm.DB, error) {
 	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable", host, user, password, db_name, db_port)
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
-		fmt.Printf("Error connecting to the database: %v\n", err)
+		slog.Error("Error connecting to the database", "error", err)
 		return nil, err
 	}
-	fmt.Println("Database connection successful!")
 
 	userExists := db.Migrator().HasTable(&models.User{})
 	notesExists := db.Migrator().HasTable(&models.Notes{})
 	if !notesExists || !userExists {
-		fmt.Println("Table does not exist! Performing migrations...")
+		slog.Error("Table does not exist! Performing migrations...", "error", err)
 		db.AutoMigrate(&models.User{}, &models.Notes{})
 	} else {
 		fmt.Println("Tables exist! No migrations needed.")
-		fmt.Println()
 	}
 
 	return db, nil

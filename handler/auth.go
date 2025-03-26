@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 
 	"github.com/gorilla/sessions"
@@ -35,14 +35,14 @@ func AuthRequiredMiddleware(sessions SessionStore, next http.Handler) http.Handl
 		w.Header().Set("Content-Type", "application/json")
 		session, err := sessions.Get(r, "auth-session")
 		if err != nil {
-			log.Printf("Session error: %v", err)
+			slog.Error("Session error: ", "error", err)
 			http.Error(w, `{"error":"Internal server error"}`, http.StatusInternalServerError)
 			return
 		}
 
 		userID, ok := session.Values["user_id"]
 		if !ok {
-			log.Println("No user_id found in session")
+			slog.Error("No used_id found in session", "error", err)
 			http.Error(w, `{"error":"Internal server error"}`, http.StatusInternalServerError)
 			w.WriteHeader(http.StatusUnauthorized)
 			return
@@ -58,7 +58,8 @@ func RegisterHandler(users UserStore) http.HandlerFunc {
 		w.Header().Set("Content-Type", "application/json")
 		var registerRequest models.RegisterRequest
 		if err := json.NewDecoder(r.Body).Decode(&registerRequest); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			slog.Error("Error decoding JSON register response", "error", err)
+			http.Error(w, "Error decoding JSON response", http.StatusInternalServerError)
 			return
 		}
 		if len(registerRequest.Username) == 0 || len(registerRequest.Email) == 0 || len(registerRequest.Password) == 0 {
@@ -68,7 +69,8 @@ func RegisterHandler(users UserStore) http.HandlerFunc {
 
 		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(registerRequest.Password), bcrypt.DefaultCost) // Hash the provided password
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			slog.Error("Error generating hashed password", "error", err)
+			http.Error(w, "Error generating password.", http.StatusInternalServerError)
 			return
 		}
 
@@ -86,7 +88,7 @@ func RegisterHandler(users UserStore) http.HandlerFunc {
 		json.NewEncoder(w).Encode(map[string]string{
 			"message": "User created successfully",
 		})
-		log.Println("User created successfully!")
+		slog.Info("User created successfully")
 	}
 }
 
@@ -96,7 +98,8 @@ func LoginHandler(users UserStore, sessions SessionStore) http.HandlerFunc {
 		var loginRequest models.LoginRequest
 		err := json.NewDecoder(r.Body).Decode(&loginRequest)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			slog.Error("Error decoding JSON login response", "error", err)
+			http.Error(w, "Error decoding JSON response", http.StatusInternalServerError)
 			return
 		}
 		user, err := users.GetUserByUsername(loginRequest.Username)
@@ -110,31 +113,30 @@ func LoginHandler(users UserStore, sessions SessionStore) http.HandlerFunc {
 		}
 
 		if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(loginRequest.Password)); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			slog.Error("Passwords do not match. ERROR", "error", err)
+			http.Error(w, "Passwords do not match.", http.StatusBadRequest)
 			return
 		}
 
 		session, err := sessions.Get(r, "auth-session")
 		if err != nil {
-			log.Printf("Error getting session: %v", err)
+			slog.Error("Error getting session", "error", err)
             http.Error(w, "Failed to get session.", http.StatusInternalServerError)
             return
 		}
 
 		session.Values["user_id"] = user.ID
 		if err := session.Save(r, w); err != nil {
-			log.Printf("Error saving session: %v", err)
+			slog.Error("Error saving session", "error", err)
 			http.Error(w, "Failed to save session.", http.StatusInternalServerError)
 			return
 		}
-
-		log.Println("Session saved successfully")
 
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]string{
 			"message": "Logged in successfully",
 		})
-		log.Println("Logged in successfully!")
+		slog.Info("User logged in succesfully")
 	}
 }
 

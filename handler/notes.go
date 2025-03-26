@@ -5,13 +5,13 @@ package handler
 
 import (
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 
 	"github.com/phenriqx/notes-api/models"
-	"gorm.io/gorm"
 
 	"github.com/gorilla/mux"
+	"gorm.io/gorm"
 )
 
 type NoteStore interface {
@@ -63,6 +63,8 @@ func CreateNoteHandler(db *gorm.DB) http.HandlerFunc {
 		json.NewEncoder(w).Encode(map[string]string{
 			"message": "Note created successfully",
 		})
+
+		slog.Info("Note created successfully")
 	}
 }
 
@@ -91,14 +93,14 @@ func EditNoteHandler(notes NoteStore, db *gorm.DB) http.HandlerFunc {
 		oldNote, err := notes.GetNoteByID(id)
 		if err != nil {
 			http.Error(w, "Error fetching note from database.", http.StatusNotFound)
-            log.Printf("Error fetching note from database: %v", err)
+			slog.Error("Error fetching note from database", "error", err)
             return
 		}
 
 		var updatedNote models.Notes
 		if err := json.NewDecoder(r.Body).Decode(&updatedNote); err != nil {
 			http.Error(w, "Error decoding note.", http.StatusInternalServerError)
-			log.Printf("Error decoding note: %v", err)
+			slog.Error("Error decoding note", "error", err)
 			return
 		}
 
@@ -114,6 +116,8 @@ func EditNoteHandler(notes NoteStore, db *gorm.DB) http.HandlerFunc {
 		json.NewEncoder(w).Encode(map[string]string{
 			"Message": "Note updated successfully",
 		})
+		
+		slog.Info("Note updated successfully")
 	}
 }
 
