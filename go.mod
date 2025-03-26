@@ -10,6 +10,7 @@ require (
 )
 
 require (
+	github.com/golang-jwt/jwt/v5 v5.2.2
 	github.com/gorilla/sessions v1.4.0
 	github.com/jub0bs/cors v0.5.7
 	golang.org/x/crypto v0.36.0
