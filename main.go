@@ -46,18 +46,25 @@ func main() {
 	logger := slog.New(slog.NewJSONHandler(file, handlerOptions))
 	slog.SetDefault(logger)
 
+	// Routes configuration and versioning
 	myRouter := mux.NewRouter()
+	v1 := myRouter.PathPrefix("/v1").Subrouter()
+	v1.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "Oops, looks like you've got the wrong route/version!", http.StatusNotFound)
+		w.WriteHeader(http.StatusNotFound)
+	})
+
 	// Note routes
-	myRouter.Handle("/notes", handler.AuthRequiredMiddleware(sessionStore, handler.GetNotesHandler(gormStore))).Methods("GET")
-	myRouter.Handle("/notes/new", handler.AuthRequiredMiddleware(sessionStore, handler.CreateNoteHandler(db))).Methods("POST")
-	myRouter.Handle("/note/{id}", handler.AuthRequiredMiddleware(sessionStore, handler.GetNoteByIDHandler(gormStore))).Methods("GET")
-	myRouter.Handle("/note/{id}/delete", handler.AuthRequiredMiddleware(sessionStore, handler.DeleteNoteHandler(gormStore))).Methods("POST")
-	myRouter.Handle("/note/{id}/update", handler.AuthRequiredMiddleware(sessionStore, handler.EditNoteHandler(gormStore, db))).Methods("POST")
+	v1.Handle("/notes", handler.AuthRequiredMiddleware(sessionStore, handler.GetNotesHandler(gormStore))).Methods("GET")
+	v1.Handle("/notes/new", handler.AuthRequiredMiddleware(sessionStore, handler.CreateNoteHandler(db))).Methods("POST")
+	v1.Handle("/note/{id}", handler.AuthRequiredMiddleware(sessionStore, handler.GetNoteByIDHandler(gormStore))).Methods("GET")
+	v1.Handle("/note/{id}/delete", handler.AuthRequiredMiddleware(sessionStore, handler.DeleteNoteHandler(gormStore))).Methods("POST")
+	v1.Handle("/note/{id}/update", handler.AuthRequiredMiddleware(sessionStore, handler.EditNoteHandler(gormStore, db))).Methods("POST")
 
 	// Authentication routes
-	myRouter.HandleFunc("/login", handler.LoginHandler(gormStore, sessionStore)).Methods("POST")
-	myRouter.HandleFunc("/register", handler.RegisterHandler(gormStore)).Methods("GET", "POST")
-	myRouter.HandleFunc("/logout", handler.LogoutHandler).Methods("GET", "POST")
+	v1.HandleFunc("/login", handler.LoginHandler(gormStore, sessionStore)).Methods("POST")
+	v1.HandleFunc("/register", handler.RegisterHandler(gormStore)).Methods("GET", "POST")
+	v1.HandleFunc("/logout", handler.LogoutHandler).Methods("GET", "POST")
 
 	http.Handle("/", myRouter)
 
